@@ -198,4 +198,4 @@ class LaneApproximator(BaseEstimator):
 
         return update_dictionary(
             stateful_data,
-            {'X': [image, left_fitx, right_fitx, ploty, left_fit, right_fit], 'state': updated_pipeline_state})
+            {'X': [left_fitx, right_fitx, ploty, left_fit, right_fit], 'state': updated_pipeline_state})
