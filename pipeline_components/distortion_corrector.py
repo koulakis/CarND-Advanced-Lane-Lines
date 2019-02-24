@@ -21,6 +21,7 @@ class DistortionCorrector(BaseEstimator):
         if plot_corners:
             for result_corners, image in zip(actual_corners, images):
                 result, corners = result_corners
+                plt.figure(figsize=(10, 10))
                 plt.imshow(cv2.drawChessboardCorners(image.copy(), self.corner_shape, corners, result))
                 plt.show()
 

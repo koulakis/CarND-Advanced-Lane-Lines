@@ -1,3 +1,4 @@
 from .distortion_corrector import DistortionCorrector
 from .image_thresholder import ImageThresholder
 from .perspective_transformer import PerspectiveTransformer
+from .lanes_approximator import LaneApproximator
