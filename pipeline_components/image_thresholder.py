@@ -43,8 +43,8 @@ class ImageThresholder(BaseEstimator):
 
         return ImageThresholder.scale_and_filter(sobel_arc, thresh)
 
-    def fit(self, X, y=None):
+    def fit(self):
         return self
 
     def transform(self, image):
-        return self.transform_function(image)
+        return self.transform_function(image).astype('float32')
