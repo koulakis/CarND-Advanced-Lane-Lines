@@ -4,11 +4,13 @@ import numpy as np
 
 
 class PerspectiveTransformer(BaseEstimator):
-    def __init__(self, image_shape, inverse=False, x_low_offset=.14, x_high_offset=.48):
+    def __init__(self, image_shape, inverse=False, x_low_offset=.15, x_high_offset=.44, y_offset=0.65):
         self.x_low_offset = x_low_offset
         self.x_high_offset = x_high_offset
+        self.y_offset = y_offset
         self.img_height, self.img_width = image_shape[:2]
         self.transform_matrix = None
+        self.source_points = None
         self.inverse = inverse
 
     def fit(self):
@@ -17,9 +19,11 @@ class PerspectiveTransformer(BaseEstimator):
 
         source_points = np.array([
             (x_low_offset * img_width, img_height),
-            (x_high_offset * img_width, .6 * img_height),
-            ((1 - x_high_offset) * img_width, .6 * img_height),
+            (x_high_offset * img_width, self.y_offset * img_height),
+            ((1 - x_high_offset) * img_width, self.y_offset * img_height),
             ((1 - x_low_offset) * img_width, img_height)], dtype='float32')
+
+        self.source_points = source_points
 
         x_left_target = (x_low_offset + x_high_offset) / 2
         x_right_target = 1 - x_left_target
