@@ -2,6 +2,8 @@ from sklearn.base import BaseEstimator
 import cv2
 import numpy as np
 
+from .utils import update_dictionary
+
 
 class PerspectiveTransformer(BaseEstimator):
     def __init__(self, image_shape, inverse=False, x_low_offset=.15, x_high_offset=.44, y_offset=0.65):
@@ -39,9 +41,13 @@ class PerspectiveTransformer(BaseEstimator):
             if self.inverse
             else cv2.getPerspectiveTransform(source_points, target_points))
 
-    def transform(self, image):
-        return cv2.warpPerspective(
-            image,
-            self.transform_matrix,
-            (self.img_width, self.img_height),
-            flags=cv2.INTER_LINEAR)
+        return self
+
+    def transform(self, stateful_data):
+        return update_dictionary(
+            stateful_data,
+            {'X': cv2.warpPerspective(
+                stateful_data['X'],
+                self.transform_matrix,
+                (self.img_width, self.img_height),
+                flags=cv2.INTER_LINEAR)})

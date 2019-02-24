@@ -3,6 +3,8 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .utils import update_dictionary
+
 
 class DistortionCorrector(BaseEstimator):
     def __init__(self, corner_shape=(9, 6)):
@@ -41,5 +43,7 @@ class DistortionCorrector(BaseEstimator):
             object_points, image_points, images[0].shape[1::-1], None, None)
         return self
 
-    def transform(self, image):
-        return cv2.undistort(image, self.matrix, self.distortion_coefficients)
+    def transform(self, stateful_data):
+        return update_dictionary(
+            stateful_data,
+            {'X': cv2.undistort(stateful_data['X'], self.matrix, self.distortion_coefficients)})

@@ -2,6 +2,8 @@ from sklearn.base import BaseEstimator
 import cv2
 import numpy as np
 
+from .utils import update_dictionary
+
 
 class ImageThresholder(BaseEstimator):
     def __init__(self, transform_function):
@@ -46,5 +48,7 @@ class ImageThresholder(BaseEstimator):
     def fit(self):
         return self
 
-    def transform(self, image):
-        return self.transform_function(image).astype('float32')
+    def transform(self, stateful_data):
+        return update_dictionary(
+            stateful_data,
+            {'X': self.transform_function(stateful_data['X']).astype('float32')})
