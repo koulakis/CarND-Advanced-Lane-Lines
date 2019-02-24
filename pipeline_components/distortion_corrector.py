@@ -25,8 +25,8 @@ class DistortionCorrector(BaseEstimator):
                 plt.show()
 
         canonical_3d_corner_positions = np.concatenate(
-            [np.mgrid[0:corners_shape[0], 0:corners_shape[1]].T.reshape(-1, 2),
-             np.zeros((corners_shape[0] * corners_shape[1], 1))],
+            [np.mgrid[0:self.corner_shape[0], 0:self.corner_shape[1]].T.reshape(-1, 2),
+             np.zeros((self.corner_shape[0] * self.corner_shape[1], 1))],
             axis=1).astype('float32')
 
         image_points = [corners for result, corners in actual_corners if result]
