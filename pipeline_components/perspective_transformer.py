@@ -2,6 +2,9 @@ from sklearn.base import BaseEstimator
 import cv2
 import numpy as np
 
+from .pipeline_state import TransformContext
+from .utils import annotate_image_with_mask, gray_to_single_color
+
 
 class PerspectiveTransformer(BaseEstimator):
     def __init__(self, image_shape, inverse=False,
@@ -44,20 +47,19 @@ class PerspectiveTransformer(BaseEstimator):
         return self
 
     def transform(self, stateful_data):
-        warped_image = (cv2.warpPerspective(
-            stateful_data['X'],
-            self.transform_matrix,
-            (self.img_width, self.img_height),
-            flags=cv2.INTER_LINEAR))
+        with TransformContext(self.__class__.__name__, stateful_data) as s:
+            warped_image = (cv2.warpPerspective(
+                s['data'],
+                self.transform_matrix,
+                (self.img_width, self.img_height),
+                flags=cv2.INTER_LINEAR))
 
-        output = stateful_data.copy()
-        output['X'] = warped_image
-        if self.overwrite_image is not None:
-            output['state']['image'] = (
-                    self.overwrite_image * np.stack([
-                        np.zeros(warped_image.shape),
-                        np.zeros(warped_image.shape),
-                        np.where(warped_image == 1, 255, 0)], axis=2)
-                    + (1 - self.overwrite_image) * output['state']['image'])
+            s['data'] = warped_image
+            if self.overwrite_image is not None:
+                s['cached_image'] = (
+                    annotate_image_with_mask(
+                        s['cached_image'],
+                        gray_to_single_color(warped_image, (255, 0, 0)),
+                        alpha=self.overwrite_image))
 
-        return output
+        return stateful_data

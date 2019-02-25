@@ -1,5 +1,4 @@
 from typing import List, Dict, Any
-import numpy as np
 
 
 class TransformError(Exception):
@@ -18,22 +17,35 @@ class TransformError(Exception):
 class SingleStepState:
     def __init__(
             self,
-            data=None,
-            errors: List[TransformError]=[],
-            extracted_lane_information: Dict[str, Any]={
-                'left_fit': None,
-                'right_fit': None
-            },
-            image: np.dtype('uint8')=None):
+            step_number: int,
+            errors: List[Dict[str, Any]],
+            left_fit=None,
+            right_fit=None):
 
-        self.data = data
+        self.step_number = step_number
+        self.left_fit = left_fit
+        self.right_fit = right_fit
         self.errors = errors
-        self.extracted_lane_information = extracted_lane_information
-        self.image = image
+
+    def add_error(self, error):
+        self.errors.append(error)
+
+    def set_left_fit(self, left_fit):
+        self.left_fit = left_fit
+
+    def set_right_fit(self, right_fit):
+        self.right_fit = right_fit
+
+    def __str__(self):
+        return str({
+            'sterp_number': self.step_number,
+            'left_fit': self.left_fit,
+            'right_fit': self.right_fit,
+            'errors': self.errors})
 
 
 class TransformContext:
-    def __init__(self, component_name: str, state: List[SingleStepState]):
+    def __init__(self, component_name: str, state: Dict[str, Any]):
         self.state = state
         self.component_name = component_name
 
@@ -41,9 +53,13 @@ class TransformContext:
         return self.state
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type != TransformError:
-            return False
+        if (exc_val is not None) and (len(self.state['steps'][-1].errors) == 0):
+            if exc_type is not TransformError:
+                return False
 
-        if exc_val is not None:
-            self.state[-1].errors.append(exc_val.error_details())
+            self.state['steps'][-1].errors.append(
+                {
+                    'component': self.component_name,
+                    'exception': exc_val.error_details()})
             return True
+        return True

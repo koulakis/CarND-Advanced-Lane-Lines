@@ -2,6 +2,9 @@ from sklearn.base import BaseEstimator
 import cv2
 import numpy as np
 
+from .pipeline_state import TransformContext
+from .utils import annotate_image_with_mask, gray_to_single_color
+
 
 class ImageThresholder(BaseEstimator):
     def __init__(self, transform_function, overwrite_image=None):
@@ -48,15 +51,14 @@ class ImageThresholder(BaseEstimator):
         return self
 
     def transform(self, stateful_data):
-        output_image = self.transform_function(stateful_data['X']).astype('float32')
-        output = stateful_data.copy()
-        output['X'] = output_image
-        if self.overwrite_image is not None:
-            output['state']['image'] = (
-                    self.overwrite_image * np.stack([
-                        np.where(output_image == 1, 255, 0),
-                        np.zeros(output_image.shape),
-                        np.zeros(output_image.shape)], axis=2)
-                    + (1 - self.overwrite_image) * output['state']['image'])
+        with TransformContext(self.__class__.__name__, stateful_data) as s:
+            output_image = self.transform_function(s['data']).astype('float32')
+            s['data'] = output_image
+            if self.overwrite_image is not None:
+                s['cached_image'] = (
+                    annotate_image_with_mask(
+                        s['cached_image'],
+                        gray_to_single_color(output_image, (0, 0, 255)),
+                        alpha=self.overwrite_image))
 
-        return output
+        return stateful_data

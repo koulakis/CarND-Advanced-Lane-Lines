@@ -2,6 +2,9 @@ from sklearn.base import BaseEstimator
 import cv2
 import numpy as np
 
+from .utils import annotate_image_with_mask
+from .pipeline_state import TransformContext, TransformError
+
 
 class LaneAnnotator(BaseEstimator):
     def __init__(self, inverse_perspective_transformer, bottom_left_corner_text=(50, 60)):
@@ -12,18 +15,17 @@ class LaneAnnotator(BaseEstimator):
     def mask_between_lanes(image, left_fitx, right_fitx, ploty, inverse_perspective_transformer):
         left_fitx, right_fitx, ploty = [x.astype(int) for x in [left_fitx, right_fitx, ploty]]
 
-        fit_img = np.zeros(image.shape)
-        fit_img[ploty, left_fitx, :] = (255, 255, 0)
-        fit_img[ploty, right_fitx, :] = (255, 255, 0)
+        try:
+            fit_img = np.zeros(image.shape)
+            fit_img[ploty, left_fitx, :] = (255, 255, 0)
+            fit_img[ploty, right_fitx, :] = (255, 255, 0)
+        except IndexError as e:
+            raise TransformError('x value of fitted polynomial outside image bounds', e)
 
         for x_l, x_r, y in zip(left_fitx, right_fitx, ploty.astype(int)):
             fit_img[y, x_l:x_r, :] = (0, 255, 0)
 
-        return inverse_perspective_transformer.transform({'X': fit_img, 'state': {}})['X']
-
-    @staticmethod
-    def draw_area_between_lines_in_image(image, lines_mask, alpha=0.3):
-        return np.minimum(255, image + alpha * lines_mask).astype('uint8')
+        return inverse_perspective_transformer.transform({'data': fit_img})['data']
 
     def draw_radius_and_location_text(self, image, radius, location):
         image_copy = image.copy()
@@ -52,20 +54,20 @@ class LaneAnnotator(BaseEstimator):
         return self
 
     def transform(self, stateful_data):
-        left_fitx, right_fitx, ploty, _, _, radius, location = stateful_data['X']
-        image = stateful_data['state']['image']
+        with TransformContext(self.__class__.__name__, stateful_data) as s:
+            left_fitx, right_fitx, ploty, _, _, radius, location = s['data']
+            image = s['cached_image']
 
-        lines_mask = LaneAnnotator.mask_between_lanes(
-            image,
-            left_fitx,
-            right_fitx,
-            ploty,
-            self.inverse_perspective_transformer)
+            lines_mask = LaneAnnotator.mask_between_lanes(
+                image,
+                left_fitx,
+                right_fitx,
+                ploty,
+                self.inverse_perspective_transformer)
 
-        image_with_lanes = LaneAnnotator.draw_area_between_lines_in_image(image, lines_mask)
-        annotated_image = self.draw_radius_and_location_text(image_with_lanes, radius, location)
+            image_with_lanes = annotate_image_with_mask(image, lines_mask)
+            annotated_image = self.draw_radius_and_location_text(image_with_lanes, radius, location)
 
-        output = stateful_data.copy()
-        output['X'] = annotated_image
+            s['data'] = annotated_image
 
-        return output
+        return stateful_data

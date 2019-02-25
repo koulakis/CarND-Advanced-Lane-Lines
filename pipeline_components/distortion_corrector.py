@@ -3,6 +3,8 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .pipeline_state import TransformContext
+
 
 class DistortionCorrector(BaseEstimator):
     def __init__(self, corner_shape=(9, 6)):
@@ -42,7 +44,7 @@ class DistortionCorrector(BaseEstimator):
         return self
 
     def transform(self, stateful_data):
-        output = stateful_data.copy()
-        output['X'] = cv2.undistort(stateful_data['X'], self.matrix, self.distortion_coefficients)
+        with TransformContext(self.__class__.__name__, stateful_data) as s:
+            s['data'] = cv2.undistort(s['data'], self.matrix, self.distortion_coefficients)
 
-        return output
+        return stateful_data

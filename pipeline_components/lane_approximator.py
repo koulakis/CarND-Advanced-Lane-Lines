@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 
+from .pipeline_state import TransformContext, TransformError
+
 
 class LanePixelsFinder:
     def __init__(self, image, nwindows, margin, minpix):
@@ -170,31 +172,35 @@ class LaneApproximator(BaseEstimator):
         return self
 
     def transform(self, stateful_data):
-        image, state = stateful_data['X'], stateful_data['state']
-        left_fit_state, right_fit_state = [state[key] for key in ['left_fit', 'right_fit']]
+        with TransformContext(self.__class__.__name__, stateful_data) as s:
+            image, state = s['data'], s['steps'][-1]
+            left_fit_state, right_fit_state = state.left_fit, state.right_fit
 
-        boxes_info = (
-            LanePixelsFinder.find_pixels(image, self.nwindows, self.margin, self.minpix)
-            if left_fit_state is None
-            else LanePixelsFinderFromPolynomial.find_pixels(image, left_fit_state, right_fit_state, self.margin))
+            boxes_info = (
+                LanePixelsFinder.find_pixels(image, self.nwindows, self.margin, self.minpix)
+                if left_fit_state is None
+                else LanePixelsFinderFromPolynomial.find_pixels(image, left_fit_state, right_fit_state, self.margin))
 
-        leftx, lefty, rightx, righty = boxes_info[:4]
-        left_fit, right_fit = LaneApproximator.__fit_polynomials(leftx, lefty, rightx, righty)
+            leftx, lefty, rightx, righty = boxes_info[:4]
+            if any([len(pointset) < 5 for pointset in [leftx, lefty, rightx, righty]]):
+                raise TransformError(
+                    'insufficient data to fit polynomials: leftx: {}, lefty: {}, rightx: {}, righty: {}'.format(
+                        *[str(len(pointset)) for pointset in [leftx, lefty, rightx, righty]]))
+            left_fit, right_fit = LaneApproximator.__fit_polynomials(leftx, lefty, rightx, righty)
 
-        ploty = np.linspace(0, image.shape[0] - 1, image.shape[0])
-        left_fitx = np.polyval(left_fit, ploty)
-        right_fitx = np.polyval(right_fit, ploty)
-        polynomial_info = left_fitx, right_fitx, ploty
+            ploty = np.linspace(0, image.shape[0] - 1, image.shape[0])
+            left_fitx = np.polyval(left_fit, ploty)
+            right_fitx = np.polyval(right_fit, ploty)
+            polynomial_info = left_fitx, right_fitx, ploty
 
-        if self.plot_approximation:
-            if left_fit_state is None:
-                LaneApproximator.plot_boxes_and_fitted_polynomials(image, boxes_info, polynomial_info)
-            else:
-                LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info, self.margin)
+            if self.plot_approximation:
+                if left_fit_state is None:
+                    LaneApproximator.plot_boxes_and_fitted_polynomials(image, boxes_info, polynomial_info)
+                else:
+                    LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info, self.margin)
 
-        output = stateful_data.copy()
-        output['state']['left_fit'] = left_fit
-        output['state']['right_fit'] = right_fit
-        output['X'] = [left_fitx, right_fitx, ploty, left_fit, right_fit]
+            state.set_left_fit(left_fit)
+            state.set_right_fit(right_fit)
+            s['data'] = [left_fitx, right_fitx, ploty, left_fit, right_fit]
 
-        return output
+        return stateful_data
