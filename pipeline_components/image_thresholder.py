@@ -2,12 +2,11 @@ from sklearn.base import BaseEstimator
 import cv2
 import numpy as np
 
-from .utils import update_dictionary
-
 
 class ImageThresholder(BaseEstimator):
-    def __init__(self, transform_function):
+    def __init__(self, transform_function, overwrite_image=None):
         self.transform_function = transform_function
+        self.overwrite_image = overwrite_image
 
     @staticmethod
     def blurring(image, ksize=3):
@@ -49,6 +48,15 @@ class ImageThresholder(BaseEstimator):
         return self
 
     def transform(self, stateful_data):
-        return update_dictionary(
-            stateful_data,
-            {'X': self.transform_function(stateful_data['X']).astype('float32')})
+        output_image = self.transform_function(stateful_data['X']).astype('float32')
+        output = stateful_data.copy()
+        output['X'] = output_image
+        if self.overwrite_image is not None:
+            output['state']['image'] = (
+                    self.overwrite_image * np.stack([
+                        np.where(output_image == 1, 255, 0),
+                        np.zeros(output_image.shape),
+                        np.zeros(output_image.shape)], axis=2)
+                    + (1 - self.overwrite_image) * output['state']['image'])
+
+        return output

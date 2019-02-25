@@ -4,8 +4,6 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 
-from .utils import update_dictionary
-
 
 class LanePixelsFinder:
     def __init__(self, image, nwindows, margin, minpix):
@@ -194,8 +192,9 @@ class LaneApproximator(BaseEstimator):
             else:
                 LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info, self.margin)
 
-        updated_pipeline_state = update_dictionary(state, {'left_fit': left_fit, 'right_fit': right_fit})
+        output = stateful_data.copy()
+        output['state']['left_fit'] = left_fit
+        output['state']['right_fit'] = right_fit
+        output['X'] = [left_fitx, right_fitx, ploty, left_fit, right_fit]
 
-        return update_dictionary(
-            stateful_data,
-            {'X': [left_fitx, right_fitx, ploty, left_fit, right_fit], 'state': updated_pipeline_state})
+        return output

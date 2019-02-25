@@ -1,8 +1,6 @@
 from sklearn.base import BaseEstimator
 import numpy as np
 
-from .utils import update_dictionary
-
 
 class LaneInformationExtractor(BaseEstimator):
     def __init__(self, xm_per_pix=3.7 / 700, ym_per_pix=30 / 720):
@@ -34,9 +32,10 @@ class LaneInformationExtractor(BaseEstimator):
     def transform(self, stateful_data):
         left_fitx, right_fitx, ploty, left_fit, right_fit = stateful_data['X']
 
-        return update_dictionary(
-            stateful_data,
-            {'X': [
-                left_fitx, right_fitx, ploty, left_fit, right_fit,
-                self.measure_curvature(left_fitx, right_fitx, ploty),
-                self.estimate_relative_vehicle_position(stateful_data['state']['image'], left_fitx, right_fitx)]})
+        output = stateful_data.copy()
+        output['X'] = [
+            left_fitx, right_fitx, ploty, left_fit, right_fit,
+            self.measure_curvature(left_fitx, right_fitx, ploty),
+            self.estimate_relative_vehicle_position(stateful_data['state']['image'], left_fitx, right_fitx)]
+
+        return output

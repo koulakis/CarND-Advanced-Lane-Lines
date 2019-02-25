@@ -2,8 +2,6 @@ from sklearn.base import BaseEstimator
 import cv2
 import numpy as np
 
-from .utils import update_dictionary
-
 
 class LaneAnnotator(BaseEstimator):
     def __init__(self, inverse_perspective_transformer, bottom_left_corner_text=(50, 60)):
@@ -67,6 +65,7 @@ class LaneAnnotator(BaseEstimator):
         image_with_lanes = LaneAnnotator.draw_area_between_lines_in_image(image, lines_mask)
         annotated_image = self.draw_radius_and_location_text(image_with_lanes, radius, location)
 
-        return update_dictionary(
-            stateful_data,
-            {'X': annotated_image})
+        output = stateful_data.copy()
+        output['X'] = annotated_image
+
+        return output
