@@ -45,6 +45,7 @@ class DistortionCorrector(BaseEstimator):
 
     def transform(self, stateful_data):
         with TransformContext(self.__class__.__name__, stateful_data) as s:
-            s['data'] = cv2.undistort(s['data'], self.matrix, self.distortion_coefficients)
-
+            undistorted_image = cv2.undistort(s['data'], self.matrix, self.distortion_coefficients)
+            s['data'] = undistorted_image
+            s['cached_image'] = undistorted_image
         return stateful_data

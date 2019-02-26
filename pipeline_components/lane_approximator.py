@@ -2,10 +2,9 @@ from sklearn.base import BaseEstimator
 from functools import reduce
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 
 from .pipeline_state import TransformContext, TransformError
-from .utils import annotate_image_with_mask, gray_to_single_color
+from .utils import annotate_image_with_mask
 
 
 class LanePixelsFinder:
@@ -115,7 +114,7 @@ class LaneApproximator(BaseEstimator):
         return left_fit, right_fit
 
     @staticmethod
-    def plot_boxes_and_fitted_polynomials(image, boxes_info, polynomial_info):
+    def plot_boxes_and_fitted_polynomials(image, boxes_info):
         leftx, lefty, rightx, righty, boxes = boxes_info
 
         out_img = np.dstack((image, image, image))
@@ -165,7 +164,9 @@ class LaneApproximator(BaseEstimator):
     def transform(self, stateful_data):
         with TransformContext(self.__class__.__name__, stateful_data) as s:
             image, state = s['data'], s['steps'][-1]
-            left_fit_state, right_fit_state = state.left_fit, state.right_fit
+            previous_state = s['steps'][-2] if len(s['steps']) > 1 else s['steps'][-1]
+
+            left_fit_state, right_fit_state = previous_state.left_fit, previous_state.right_fit
 
             boxes_info = (
                 LanePixelsFinder.find_pixels(image, self.nwindows, self.margin, self.minpix)
@@ -188,7 +189,7 @@ class LaneApproximator(BaseEstimator):
                 s['cached_image'] = (
                     annotate_image_with_mask(
                         s['cached_image'],
-                        (LaneApproximator.plot_boxes_and_fitted_polynomials(image, boxes_info, polynomial_info)
+                        (LaneApproximator.plot_boxes_and_fitted_polynomials(image, boxes_info)
                             if left_fit_state is None
                             else LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info,
                                                                                self.margin)),
