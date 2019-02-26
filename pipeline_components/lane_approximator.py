@@ -5,6 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 
 from .pipeline_state import TransformContext, TransformError
+from .utils import annotate_image_with_mask, gray_to_single_color
 
 
 class LanePixelsFinder:
@@ -100,11 +101,11 @@ class LanePixelsFinderFromPolynomial:
 
 
 class LaneApproximator(BaseEstimator):
-    def __init__(self,  nwindows=9, margin=100, minpix=50, plot_approximation=False):
+    def __init__(self,  nwindows=9, margin=100, minpix=50, overwrite_image=False):
         self.nwindows = nwindows
         self.margin = margin
         self.minpix = minpix
-        self.plot_approximation = plot_approximation
+        self.overwrite_image = overwrite_image
 
     @staticmethod
     def __fit_polynomials(leftx, lefty, rightx, righty):
@@ -134,11 +135,12 @@ class LaneApproximator(BaseEstimator):
                 (0, 255, 0),
                 2)
 
-        plt.figure(figsize=(10, 10))
-        plt.plot(left_fitx, ploty, color='yellow')
-        plt.plot(right_fitx, ploty, color='yellow')
-        plt.imshow(out_img)
-        plt.show()
+        return out_img
+        # plt.figure(figsize=(10, 10))
+        # plt.plot(left_fitx, ploty, color='yellow')
+        # plt.plot(right_fitx, ploty, color='yellow')
+        # plt.imshow(out_img)
+        # plt.show()
 
     @staticmethod
     def plot_around_polynomial_curve(image, curve_info, polynomial_info, margin):
@@ -161,12 +163,12 @@ class LaneApproximator(BaseEstimator):
         window_img = np.zeros_like(out_img)
         cv2.fillPoly(window_img, np.int_([left_line_pts]), (0, 255, 0))
         cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
-        result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+        return cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
         plt.figure(figsize=(10, 10))
-        plt.plot(left_fitx, ploty, color='yellow')
-        plt.plot(right_fitx, ploty, color='yellow')
-        plt.imshow(result)
+        # plt.plot(left_fitx, ploty, color='yellow')
+        # plt.plot(right_fitx, ploty, color='yellow')
+        # plt.imshow(result)
 
     def fit(self):
         return self
@@ -193,11 +195,15 @@ class LaneApproximator(BaseEstimator):
             right_fitx = np.polyval(right_fit, ploty)
             polynomial_info = left_fitx, right_fitx, ploty
 
-            if self.plot_approximation:
-                if left_fit_state is None:
-                    LaneApproximator.plot_boxes_and_fitted_polynomials(image, boxes_info, polynomial_info)
-                else:
-                    LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info, self.margin)
+            if self.overwrite_image is not None:
+                s['cached_image'] = (
+                    annotate_image_with_mask(
+                        s['cached_image'],
+                        (LaneApproximator.plot_boxes_and_fitted_polynomials(image, boxes_info, polynomial_info)
+                            if left_fit_state is None
+                            else LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info,
+                                                                               self.margin)),
+                        alpha=self.overwrite_image))
 
             state.set_left_fit(left_fit)
             state.set_right_fit(right_fit)
