@@ -117,7 +117,6 @@ class LaneApproximator(BaseEstimator):
     @staticmethod
     def plot_boxes_and_fitted_polynomials(image, boxes_info, polynomial_info):
         leftx, lefty, rightx, righty, boxes = boxes_info
-        left_fitx, right_fitx, ploty = polynomial_info
 
         out_img = np.dstack((image, image, image))
         out_img[lefty, leftx] = [255, 0, 0]
@@ -136,11 +135,6 @@ class LaneApproximator(BaseEstimator):
                 2)
 
         return out_img
-        # plt.figure(figsize=(10, 10))
-        # plt.plot(left_fitx, ploty, color='yellow')
-        # plt.plot(right_fitx, ploty, color='yellow')
-        # plt.imshow(out_img)
-        # plt.show()
 
     @staticmethod
     def plot_around_polynomial_curve(image, curve_info, polynomial_info, margin):
@@ -164,11 +158,6 @@ class LaneApproximator(BaseEstimator):
         cv2.fillPoly(window_img, np.int_([left_line_pts]), (0, 255, 0))
         cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
         return cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
-
-        plt.figure(figsize=(10, 10))
-        # plt.plot(left_fitx, ploty, color='yellow')
-        # plt.plot(right_fitx, ploty, color='yellow')
-        # plt.imshow(result)
 
     def fit(self):
         return self
