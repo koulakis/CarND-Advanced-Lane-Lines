@@ -20,7 +20,7 @@ class LaneAnnotator(BaseEstimator):
             fit_img[ploty, left_fitx, :] = (255, 255, 0)
             fit_img[ploty, right_fitx, :] = (255, 255, 0)
         except IndexError as e:
-            raise TransformError('x value of fitted polynomial outside image bounds', e)
+            raise TransformError('x value of fitted polynomial outside image bounds', str(e))
 
         for x_l, x_r, y in zip(left_fitx, right_fitx, ploty.astype(int)):
             fit_img[y, x_l:x_r, :] = (0, 255, 0)
