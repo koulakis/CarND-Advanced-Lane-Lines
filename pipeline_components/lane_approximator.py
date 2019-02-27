@@ -100,11 +100,12 @@ class LanePixelsFinderFromPolynomial:
 
 
 class LaneApproximator(BaseEstimator):
-    def __init__(self,  nwindows=9, margin=100, minpix=50, overwrite_image=False):
+    def __init__(self,  nwindows=9, margin=100, minpix=50, overwrite_image=False, smoothing=4):
         self.nwindows = nwindows
         self.margin = margin
         self.minpix = minpix
         self.overwrite_image = overwrite_image
+        self.smoothing = smoothing
 
     @staticmethod
     def __fit_polynomials(leftx, lefty, rightx, righty):
@@ -161,6 +162,12 @@ class LaneApproximator(BaseEstimator):
     def fit(self):
         return self
 
+    @staticmethod
+    def average_with_previous_steps(current_value, steps, get_step_value, num_steps):
+        return np.array(
+            [get_step_value(step) for step in steps[-num_steps:] if step.left_fit is not None]
+            + [current_value]).mean(axis=0)
+
     def transform(self, stateful_data):
         with TransformContext(self.__class__.__name__, stateful_data) as s:
             image, state = s['data'], s['steps'][-1]
@@ -178,7 +185,14 @@ class LaneApproximator(BaseEstimator):
                 raise TransformError(
                     'insufficient data to fit polynomials: leftx: {}, lefty: {}, rightx: {}, righty: {}'.format(
                         *[str(len(pointset)) for pointset in [leftx, lefty, rightx, righty]]))
-            left_fit, right_fit = LaneApproximator.__fit_polynomials(leftx, lefty, rightx, righty)
+
+            left_fit_current, right_fit_current = LaneApproximator.__fit_polynomials(leftx, lefty, rightx, righty)
+
+            left_fit = LaneApproximator.average_with_previous_steps(
+                left_fit_current, s['steps'], lambda x: x.left_fit, self.smoothing)
+
+            right_fit = LaneApproximator.average_with_previous_steps(
+                right_fit_current, s['steps'], lambda x: x.right_fit, self.smoothing)
 
             ploty = np.linspace(0, image.shape[0] - 1, image.shape[0])
             left_fitx = np.polyval(left_fit, ploty)
