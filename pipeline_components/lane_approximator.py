@@ -100,7 +100,7 @@ class LanePixelsFinderFromPolynomial:
 
 
 class LaneApproximator(BaseEstimator):
-    def __init__(self,  nwindows=9, margin=100, minpix=50, overwrite_image=False, smoothing=4):
+    def __init__(self, nwindows=9, margin=100, minpix=50, overwrite_image=False, smoothing=None):
         self.nwindows = nwindows
         self.margin = margin
         self.minpix = minpix
@@ -108,18 +108,11 @@ class LaneApproximator(BaseEstimator):
         self.smoothing = smoothing
 
     @staticmethod
-    def __fit_polynomials(leftx, lefty, rightx, righty, image):
+    def __fit_polynomials(leftx, lefty, rightx, righty):
         left_fit = np.polyfit(lefty, leftx, 2)
         right_fit = np.polyfit(righty, rightx, 2)
 
-        ploty = np.linspace(0, image.shape[0] - 1, image.shape[0])
-        left_fitx = np.polyval(left_fit, ploty)
-        right_fitx = np.polyval(right_fit, ploty)
-
-        left_fit_valid = (0 <= left_fitx.min()) & (left_fitx.max() < image.shape[1])
-        right_fit_valid = (0 <= right_fitx.min()) & (right_fitx.max() < image.shape[1])
-
-        return left_fit if left_fit_valid else None, right_fit if right_fit_valid else None
+        return left_fit, right_fit
 
     @staticmethod
     def plot_boxes_and_fitted_polynomials(image, boxes_info):
@@ -152,13 +145,15 @@ class LaneApproximator(BaseEstimator):
         out_img[lefty, leftx] = [255, 0, 0]
         out_img[righty, rightx] = [0, 0, 255]
 
-        left_line_window1 = np.array([np.transpose(np.vstack([left_fitx - margin, ploty]))])
-        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx + margin,
-                                                                        ploty])))])
+        left_line_window1 = np.array([
+            np.transpose(np.vstack([np.maximum(left_fitx - margin, 0), ploty]))])
+        left_line_window2 = np.array([
+            np.flipud(np.transpose(np.vstack([np.minimum(left_fitx + margin, image.shape[1] - 1), ploty])))])
         left_line_pts = np.hstack((left_line_window1, left_line_window2))
-        right_line_window1 = np.array([np.transpose(np.vstack([right_fitx - margin, ploty]))])
-        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx + margin,
-                                                                         ploty])))])
+        right_line_window1 = np.array(
+            [np.transpose(np.vstack([np.maximum(right_fitx - margin, 0), ploty]))])
+        right_line_window2 = np.array([
+            np.flipud(np.transpose(np.vstack([np.minimum(right_fitx + margin, image.shape[1] - 1), ploty])))])
         right_line_pts = np.hstack((right_line_window1, right_line_window2))
 
         window_img = np.zeros_like(out_img)
@@ -170,10 +165,17 @@ class LaneApproximator(BaseEstimator):
         return self
 
     @staticmethod
-    def average_with_previous_steps(current_value, steps, get_step_value, num_steps):
-        return np.array(
-            [get_step_value(step) for step in steps[-num_steps:] if get_step_value(step) is not None]
-            + [current_value] if current_value is not None else []).mean(axis=0)
+    def restrict_x_in_image(x_vals, image):
+        return np.where(0 > x_vals, 0, np.where(x_vals >= image.shape[1], image.shape[1] - 1, x_vals))
+
+    def average_with_previous_steps(self, current_value, steps, get_step_value):
+        decay_coefficients, values = map(np.array, zip(
+            *([([smooth], get_step_value(step))
+               for step, smooth in zip(steps[-len(self.smoothing):], self.smoothing)
+               if get_step_value(step) is not None]
+              + [([1.], current_value)] if current_value is not None else [])))
+
+        return (decay_coefficients * values).sum(axis=0) / decay_coefficients.sum()
 
     @staticmethod
     def check_data_existence(leftx, lefty, rightx, righty):
@@ -185,10 +187,9 @@ class LaneApproximator(BaseEstimator):
     def transform(self, stateful_data):
         with TransformContext(self.__class__.__name__, stateful_data) as s:
             image, state = s['data'], s['steps'][-1]
-            previous_state = s['steps'][-2] if len(s['steps']) > 1 else s['steps'][-1]
 
             non_empty_fits = [
-                state for state in s['steps'][-self.smoothing:]
+                state for state in s['steps'][-len(self.smoothing):]
                 if (state.left_fit is not None) and (state.right_fit is not None)]
 
             find_lanes_from_scratch = len(non_empty_fits) == 0
@@ -203,21 +204,19 @@ class LaneApproximator(BaseEstimator):
             LaneApproximator.check_data_existence(leftx, lefty, rightx, righty)
 
             left_fit_current, right_fit_current = LaneApproximator.__fit_polynomials(
-                leftx, lefty, rightx, righty, image)
+                leftx, lefty, rightx, righty)
 
-            left_fit = LaneApproximator.average_with_previous_steps(
-                left_fit_current, s['steps'], lambda x: x.left_fit, self.smoothing)
+            left_fit = self.average_with_previous_steps(
+                left_fit_current, s['steps'], lambda x: x.left_fit)
 
-            right_fit = LaneApproximator.average_with_previous_steps(
-                right_fit_current, s['steps'], lambda x: x.right_fit, self.smoothing)
+            right_fit = self.average_with_previous_steps(
+                right_fit_current, s['steps'], lambda x: x.right_fit)
 
             ploty = np.linspace(0, image.shape[0] - 1, image.shape[0])
 
-            if np.isnan(left_fit.sum()) or np.isnan(right_fit.sum()):
-                raise TransformError("Not able to fit polynomial for lane.")
+            left_fitx = LaneApproximator.restrict_x_in_image(np.polyval(left_fit, ploty), image)
+            right_fitx = LaneApproximator.restrict_x_in_image(np.polyval(right_fit, ploty), image)
 
-            left_fitx = np.polyval(left_fit, ploty)
-            right_fitx = np.polyval(right_fit, ploty)
             polynomial_info = left_fitx, right_fitx, ploty
 
             if self.overwrite_image is not None:
@@ -225,9 +224,9 @@ class LaneApproximator(BaseEstimator):
                     annotate_image_with_mask(
                         s['cached_image'],
                         (LaneApproximator.plot_boxes_and_fitted_polynomials(image, boxes_info)
-                            if find_lanes_from_scratch
-                            else LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info,
-                                                                               self.margin)),
+                         if find_lanes_from_scratch
+                         else LaneApproximator.plot_around_polynomial_curve(image, boxes_info, polynomial_info,
+                                                                            self.margin)),
                         alpha=self.overwrite_image))
 
             state.set_left_fit(left_fit)
