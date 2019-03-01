@@ -100,12 +100,13 @@ class LanePixelsFinderFromPolynomial:
 
 
 class LaneApproximator(BaseEstimator):
-    def __init__(self, nwindows=9, margin=100, minpix=50, overwrite_image=False, smoothing=None):
+    def __init__(self, nwindows=9, margin=100, minpix=50, overwrite_image=False, smoothing=None, max_coeff_divergence=.7):
         self.nwindows = nwindows
         self.margin = margin
         self.minpix = minpix
         self.overwrite_image = overwrite_image
         self.smoothing = smoothing
+        self.max_coeff_divergence = max_coeff_divergence
 
     @staticmethod
     def __fit_polynomials(leftx, lefty, rightx, righty):
@@ -184,6 +185,13 @@ class LaneApproximator(BaseEstimator):
                 'insufficient data to fit polynomials: leftx: {}, lefty: {}, rightx: {}, righty: {}'.format(
                     *[str(len(pointset)) for pointset in [leftx, lefty, rightx, righty]]))
 
+    def bad_quality_fits(self, steps):
+        left_right_steps = np.array([[step.left_fit, step.right_fit] for step in steps])
+        differences = np.abs(left_right_steps[:, 0, :] - left_right_steps[:, 1, :])
+        magnitude = np.abs(left_right_steps[:, 0, :]) + np.abs(left_right_steps[:, 1, :])
+
+        return (differences / magnitude).mean(axis=0).mean() > self.max_coeff_divergence
+
     def transform(self, stateful_data):
         with TransformContext(self.__class__.__name__, stateful_data) as s:
             image, state = s['data'], s['steps'][-1]
@@ -192,7 +200,7 @@ class LaneApproximator(BaseEstimator):
                 state for state in s['steps'][-len(self.smoothing):]
                 if (state.left_fit is not None) and (state.right_fit is not None)]
 
-            find_lanes_from_scratch = len(non_empty_fits) == 0
+            find_lanes_from_scratch = (len(non_empty_fits) == 0) or self.bad_quality_fits(non_empty_fits)
 
             boxes_info = (
                 LanePixelsFinder.find_pixels(image, self.nwindows, self.margin, self.minpix)
