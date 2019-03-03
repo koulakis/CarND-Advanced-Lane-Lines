@@ -18,7 +18,7 @@ class ImageThresholder(BaseEstimator):
     @staticmethod
     def scale_and_filter(measure, thresh):
         scaled_measure = np.uint8(255. * measure / np.max(measure))
-        return np.where((thresh[0] <= scaled_measure) & (scaled_measure <= thresh[1]), 1, 0)
+        return np.where((thresh[0] <= scaled_measure) & (scaled_measure <= thresh[1]), scaled_measure, 0)
 
     @staticmethod
     def sobel_thresh_single_direction(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
@@ -46,6 +46,10 @@ class ImageThresholder(BaseEstimator):
         sobel_arc = np.arctan2(abs_sobely, abs_sobelx)
 
         return ImageThresholder.scale_and_filter(sobel_arc, thresh)
+
+    @staticmethod
+    def binarize_image(image, threshold=0):
+        return np.where(image > threshold, 1, 0)
 
     def fit(self):
         return self
