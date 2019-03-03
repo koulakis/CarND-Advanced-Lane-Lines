@@ -45,7 +45,7 @@ The project consists of two parts, the scripts contained in the directory `pipel
 Here is a description of each of the `pipeline_components`:
 - `distortion_corrector`: Corrects image distortion using the camera calibration tools of openCV. The `fit` method of the transformer accepts a list of chessboard images used to fit the calibration parameters. During the transform step, the image distortion is undone.
 - `image_thresholder`: Accepts a function which describes a way of thresholding images and then applies it during the transform step. It also contains common building blocks for the thresholding function as static methods.
-- `perspective_transformer`: Converts the image to an bird eye view by mapping the edges of a trapezoid to the edges of a rectangle. The component takes the flag `inverse` which defines the inverse transform (used mainly for visual testing).
+- `perspective_transformer`: Converts the image to bird eye view by mapping the edges of a trapezoid to the edges of a rectangle. The component takes the flag `inverse` which defines the inverse transform (used for visual testing and to map the detected lanes back to the street on the final step).
 - `lane_approximator`: This is the largest transformer as it isolates the lanes from the preprocessed image. It uses two types of approximation, one via the `LanePixelsFinder` which isolates the lanes using consecutive windows and the `LanePixelsFinderFromPolynomial` which assumes that a polynomial has already been fitted and the lane is isolated using a margin around the curve defined by the polynomial.
 - `lane_information_extractor`: This component enriches the lane information with its curvature and the distance of the car from the middle of the lanes.
 - `lane_annotator`: This final component uses the information extracted from the image to annotate it with the area around the two lanes and the curvature and position information.
@@ -89,12 +89,12 @@ The code of the component is in `pipeline_components/distortion_corrector.py`.
 As mentioned above the `ImageThresholder` component accepts a thresholding function and provides building blocks to implement it. Using those building blocks I built a simple strategy which works as follows:
 - Detects white lanes:
     - Filters the image to the parts where the RGB values are close one to another i.e. gray regions which do not contain any other color
-    - Looks for vertical lines with an x-axis Sobel filter with a 11 pixels wide kernel and smoothing applied afterwards to fill the contents of the borders
+    - Looks for vertical lines using an x-axis Sobel filter of a 11 pixels wide kernel and smoothing applied afterwards to fill the contents between the borders
     - Defines white lanes as the points which are both non-colorful and look like vertical lines
     
 - Detects yellow lanes:
     - Filters the image to the parts where the RGB values differ one from another i.e. colorful regions
-    - Looks for vertical lines with an x-axis Sobel filter with a 11 pixels wide kernel and smoothing applied afterwards to fill the contents of the borders
+   - Looks for vertical lines using an x-axis Sobel filter of a 11 pixels wide kernel and smoothing applied afterwards to fill the contents between the borders
     - Defines yellow lanes as the points which are both colorful and look like vertical lines
 - Merges white and yellow lanes
 
@@ -177,11 +177,11 @@ I run the above pipeline on all three videos. Here are links to them:
 - [Challenge video](./output_videos/challenge_video.mp4)
 - [Harder challenge video](./output_videos/harder_challenge_video.mp4)
 
-Here are links the same videos annotated with intermediate results such as the thresholde image and lane approximation outputs. They were very useful during debugging the pipeline.
+Here are links to the same videos annotated with intermediate results such as the thresholde image and lane approximation outputs. They were very useful during debugging the pipeline.
 
-- [Project video](./output_videos_debugging/project_video.mp4)
-- [Challenge video](./output_videos_debugging/challenge_video.mp4)
-- [Harder challenge video](./output_videos_debugging/harder_challenge_video.mp4)
+- [Project video - debugging](./output_videos_debugging/project_video.mp4)
+- [Challenge video - debugging](./output_videos_debugging/challenge_video.mp4)
+- [Harder challenge video - debugging](./output_videos_debugging/harder_challenge_video.mp4)
 
 ---
 
@@ -198,9 +198,9 @@ Some issues which already appear in the hard challenge are:
 - The fitted lanes might be non-parallel or even cross each other. 
 
 #### 1. Potential solutions to the pipeline issues
-The most crucial part of the pipeline is the thresholding of the image to make a good filtering of points which are almost the lanes. While improving this component it felt like manually building a CNN. Namely the different blocks used mapped to corresponding CNN components. E.g. the Sober filter or color combinations were convolutions, the thresholding was application of ReLu and linear combinations of the above combination of filters. Using an end-to-end learning approach where one optimizes a metric like intersection over union for the lanes annotated on the images would be a much more precise and scalable solution. This will become evident as one tries to cover different driving environments and correct failure cases.
+The most crucial part of the pipeline is the thresholding of the image to make a good filtering of points which are almost the lanes. While improving this component it felt like manually building a CNN. E.g. the Sober filter or color combinations are convolutions, the thresholding was application of ReLu and linear combinations of the above are combinations of filters. Using an end-to-end learning approach where one optimizes a metric like intersection over union for the lanes annotated on the images would be a much more precise and scalable solution. This will become evident as one tries to cover different driving environments and attempt to correct failing cases.
 
-Some more direct and short-term improvements could be:
+Some more actionable but short-term improvements are:
 
 - To avoid the issues related with brightness one can come up with an alternative, more restrictive definition of a lane. Some examples are 
     - Set stricter restrictions on the thickness (this would filter the thin line in the middle in the challenge video)
@@ -228,4 +228,3 @@ During this project I came up with some questions regarding best practices on bu
 To elaborate a bit more on the question I can give you a link to this [recent post about building such pipelines](https://www.kdnuggets.com/2019/02/4-reasons-machine-learning-code-probably-bad.html) which triggered my interest. It suggest using DAGs (Directed Acyclic Graphs) of tasks instead of linear pipelines for machine learning projects. Some frameworks/libraries mentioned there are `d6tflow`, `luigi` and `airflow`. 
 
 Additionally one of my challenges was keeping track of an internal state of the pipeline. In this case I chose to merge the state with the input data and then use it or over-write it when needed. It would have been great though if the pipeline had tools build for this case e.g. the state passed as argument of the transform method. This would make the separation of data and state much more explicit and building a pipeline from scratch quicker. Do you know if any of the above, or any other workflow building tool supports that?
-
