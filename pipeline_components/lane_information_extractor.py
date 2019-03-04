@@ -23,7 +23,7 @@ class LaneInformationExtractor(BaseEstimator):
         return (left_curverad + right_curverad) / 2
 
     def estimate_relative_vehicle_position(self, image, leftx, rightx):
-        lane_center = (leftx[0] + rightx[0]) / 2
+        lane_center = (leftx[-1] + rightx[-1]) / 2
         vehicle_center = image.shape[1] / 2
 
         return self.xm_per_pix * (vehicle_center - lane_center)
